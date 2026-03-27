@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -33,19 +34,87 @@ type APIResponse struct {
 
 func main() {
 	configPath := filepath.Join(os.Getenv("HOME"), ".reelquotes.conf")
+	profilePath := getShellProfile()
 
-	if len(os.Args) > 2 && os.Args[1] == "import" {
-		data, err := os.ReadFile(os.Args[2])
-		if err != nil {
-			fmt.Println("Error:", err)
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "import":
+			if len(os.Args) < 3 {
+				return
+			}
+			importConfig(os.Args[2], configPath)
+			return
+		case "install":
+			manageShell(profilePath, true)
+			return
+		case "uninstall":
+			manageShell(profilePath, false)
 			return
 		}
-		_ = os.WriteFile(configPath, data, 0644)
-		fmt.Println("Config imported")
-		return
 	}
 
 	fetchQuote(configPath)
+}
+
+func getShellProfile() string {
+	home := os.Getenv("HOME")
+	shell := os.Getenv("SHELL")
+
+	// Default to .zshrc
+	profile := filepath.Join(home, ".zshrc")
+
+	if strings.Contains(shell, "bash") {
+		profile = filepath.Join(home, ".bashrc")
+		// Fallback for macOS Bash users
+		if _, err := os.Stat(profile); os.IsNotExist(err) {
+			profile = filepath.Join(home, ".bash_profile")
+		}
+	}
+	return profile
+}
+
+func importConfig(src, dest string) {
+	data, err := os.ReadFile(src)
+	if err != nil {
+		return
+	}
+	_ = os.WriteFile(dest, data, 0644)
+	fmt.Println("Config imported successfully.")
+}
+
+func manageShell(profilePath string, install bool) {
+	marker := "reelquotes # added by reelquotes-cli"
+
+	content, err := os.ReadFile(profilePath)
+	if err != nil {
+		return
+	}
+
+	lines := strings.Split(string(content), "\n")
+	var newLines []string
+	found := false
+
+	for _, line := range lines {
+		if strings.Contains(line, "reelquotes") {
+			found = true
+			if !install {
+				continue
+			}
+		}
+		newLines = append(newLines, line)
+	}
+
+	if install && !found {
+		newLines = append(newLines, marker)
+		fmt.Printf("Added reelquotes to %s\n", filepath.Base(profilePath))
+	} else if !install {
+		fmt.Printf("Removed reelquotes from %s\n", filepath.Base(profilePath))
+	} else if install && found {
+		fmt.Println("Already installed in your shell profile.")
+		return
+	}
+
+	_ = os.WriteFile(profilePath, []byte(strings.Join(newLines, "\n")), 0644)
 }
 
 func fetchQuote(configPath string) {
@@ -63,7 +132,7 @@ func fetchQuote(configPath string) {
 		file.Close()
 	}
 
-	client := &http.Client{Timeout: 5 * time.Second}
+	client := &http.Client{Timeout: 500 * time.Millisecond}
 	req, _ := http.NewRequest("GET", apiURL, nil)
 	req.Header.Set("x-reel-quotes", "reel-quotes-cli")
 
