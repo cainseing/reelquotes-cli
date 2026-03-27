@@ -2,9 +2,11 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"math/rand"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -33,16 +35,19 @@ type APIResponse struct {
 }
 
 func main() {
-	configPath := filepath.Join(os.Getenv("HOME"), ".reelquotes.conf")
+	configPath := filepath.Join(os.Getenv("HOME"), ".reelquotes.json")
 	profilePath := getShellProfile()
 
-	if len(os.Args) > 1 {
-		switch os.Args[1] {
+	title := flag.String("title", "", "Search for a quote from a specific film")
+	flag.Parse()
+
+	if flag.NArg() > 0 {
+		switch flag.Arg(0) {
 		case "import":
-			if len(os.Args) < 3 {
+			if flag.NArg() < 2 {
 				return
 			}
-			importConfig(os.Args[2], configPath)
+			importConfig(flag.Arg(1), configPath)
 			return
 		case "install":
 			manageShell(profilePath, true)
@@ -53,19 +58,17 @@ func main() {
 		}
 	}
 
-	fetchQuote(configPath)
+	fetchQuote(configPath, *title)
 }
 
 func getShellProfile() string {
 	home := os.Getenv("HOME")
 	shell := os.Getenv("SHELL")
 
-	// Default to .zshrc
 	profile := filepath.Join(home, ".zshrc")
 
 	if strings.Contains(shell, "bash") {
 		profile = filepath.Join(home, ".bashrc")
-		// Fallback for macOS Bash users
 		if _, err := os.Stat(profile); os.IsNotExist(err) {
 			profile = filepath.Join(home, ".bash_profile")
 		}
@@ -117,10 +120,12 @@ func manageShell(profilePath string, install bool) {
 	_ = os.WriteFile(profilePath, []byte(strings.Join(newLines, "\n")), 0644)
 }
 
-func fetchQuote(configPath string) {
+func fetchQuote(configPath string, search string) {
 	apiURL := "https://api.reelquotes.app/quote?singular=true"
 
-	if file, err := os.Open(configPath); err == nil {
+	if search != "" {
+		apiURL = fmt.Sprintf("%s&type=media&q=%s", apiURL, url.QueryEscape(search))
+	} else if file, err := os.Open(configPath); err == nil {
 		var cfg Config
 		if err := json.NewDecoder(file).Decode(&cfg); err == nil && len(cfg.FavMovies) > 0 {
 			randomMovie := cfg.FavMovies[rand.Intn(len(cfg.FavMovies))]
