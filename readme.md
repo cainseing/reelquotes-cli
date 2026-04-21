@@ -37,7 +37,7 @@ If you have favourites setup from the [ReelQuotes](https://reelquotes.app), expo
 | Command | Description |
  | :--- | :--- |
  | `reelquotes` | Fetches and displays a random quote. |
- | `reel quotes import [path]` | Import your preferences from the web app. |
+ | `reelquotes import [path]` | Import your preferences from the web app. |
  | `reelquotes install` | Automatically adds `reelquotes` to your shell profile. |
  | `reelquotes uninstall` | Removes `reelquotes` from your shell profile. |
 
